@@ -62,7 +62,7 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
             // trace_request == 2: 查询当前任务的系统调用次数
             let sys_id = id as usize; // 转换 id 为系统调用编号
             ascend_sys_call(sys_id); // 增加系统调用次数
-            let sys_call_times = get_sys_call_times(); // 获取当前任务的调用次数
+            let sys_call_times =get_sys_call_times(); // 获取当前任务的调用次数
             sys_call_times[sys_id] as isize // 返回指定系统调用的次数
         }
         _ => -1, // 其他无效 trace_request 值，返回 -1
