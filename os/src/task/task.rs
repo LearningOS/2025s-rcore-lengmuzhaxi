@@ -1,9 +1,16 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
+<<<<<<< HEAD
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+=======
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
+use crate::mm::{
+    kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
+};
+>>>>>>> 7aa2f40 (chapter4练习)
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
@@ -68,6 +75,9 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Syscall record
+    pub syscall_record: [usize; MAX_SYSCALL_NUM],
 }
 
 impl TaskControlBlockInner {
@@ -104,6 +114,7 @@ impl TaskControlBlock {
         let kernel_stack_top = kernel_stack.get_top();
         // push a task context which goes to trap_return to the top of kernel stack
         let task_control_block = Self {
+<<<<<<< HEAD
             pid: pid_handle,
             kernel_stack,
             inner: unsafe {
@@ -120,6 +131,16 @@ impl TaskControlBlock {
                     program_brk: user_sp,
                 })
             },
+=======
+            task_status,
+            task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+            memory_set,
+            trap_cx_ppn,
+            base_size: user_sp,
+            heap_bottom: user_sp,
+            program_brk: user_sp,
+            syscall_record: [0; MAX_SYSCALL_NUM],
+>>>>>>> 7aa2f40 (chapter4练习)
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
@@ -248,5 +269,10 @@ pub enum TaskStatus {
     /// running
     Running,
     /// exited
+<<<<<<< HEAD
     Zombie,
 }
+=======
+    Exited,
+}
+>>>>>>> 7aa2f40 (chapter4练习)
