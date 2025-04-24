@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -103,6 +104,20 @@ impl TaskManager {
         inner.tasks[cur].task_status = TaskStatus::Exited;
     }
 
+    /// Record syscall
+    fn ascend_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_record[syscall_id] += 1;
+    }
+
+    /// Get syscall record
+    fn get_syscall(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_record[syscall_id]
+    }
+
     /// Find next task to run and return task id.
     ///
     /// In this case, we only return the first `Ready` task in task list.
@@ -118,6 +133,46 @@ impl TaskManager {
     fn get_current_token(&self) -> usize {
         let inner = self.inner.exclusive_access();
         inner.tasks[inner.current_task].get_user_token()
+    }
+
+    /// Map an area for current 'Running' task
+    pub fn map(&self, start: usize, len: usize, port: usize) -> bool {
+        let left_vaddr = VirtAddr::from(start);
+        let right_vaddr = VirtAddr::from(start + len);
+        if !left_vaddr.aligned() {
+            return false;
+        }
+        if port & !0x7 != 0 || port == 0 {
+            return false;
+        }
+
+        let left = VirtPageNum::from(left_vaddr);
+        let right = right_vaddr.ceil();
+        let permission = MapPermission::from_bits_truncate(((port as u8) << 1) | (1 << 4));
+
+        // get current task memset
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memset = &mut inner.tasks[current].memory_set;
+
+        memset.map(left, right, permission)
+    }
+
+    /// Unmap an area for current 'Running' task
+    pub fn unmap(&self, start: usize, len: usize) -> bool {
+        let left_vaddr = VirtAddr::from(start);
+        let right_vaddr = VirtAddr::from(start + len);
+        if !left_vaddr.aligned() {
+            return false;
+        }
+        let left = VirtPageNum::from(left_vaddr);
+        let right = right_vaddr.ceil();
+        // get current task memset
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memset = &mut inner.tasks[current].memory_set;
+
+        memset.unmap(left, right)
     }
 
     /// Get the current 'Running' task's trap contexts.
@@ -193,6 +248,16 @@ pub fn current_user_token() -> usize {
     TASK_MANAGER.get_current_token()
 }
 
+/// Map an area for current 'Running' task
+pub fn current_map(start: usize, len: usize, port: usize) -> bool {
+    TASK_MANAGER.map(start, len, port)
+}
+
+/// Unmap an area for current 'Running' task
+pub fn current_munmap(start: usize, len: usize) -> bool {
+    TASK_MANAGER.unmap(start, len)
+}
+
 /// Get the current 'Running' task's trap contexts.
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
@@ -201,4 +266,14 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Record syscall
+pub fn ascend_syscall(syscall_id: usize) {
+    TASK_MANAGER.ascend_syscall(syscall_id);
+}
+
+/// Get syscall record
+pub fn get_syscall(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_syscall(syscall_id)
 }
