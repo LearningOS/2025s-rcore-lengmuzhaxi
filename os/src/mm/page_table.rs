@@ -185,7 +185,6 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
-<<<<<<< HEAD
 }
 
 /// Translate&Copy a ptr[u8] array end with `\0` to a `String` Vec through page table
@@ -218,6 +217,3 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
-=======
-}
->>>>>>> 7aa2f40 (chapter4练习)

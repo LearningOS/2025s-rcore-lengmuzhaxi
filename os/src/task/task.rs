@@ -1,20 +1,17 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
-<<<<<<< HEAD
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, VirtPageNum, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
-=======
-use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
-use crate::mm::{
-    kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
-};
->>>>>>> 7aa2f40 (chapter4练习)
+use crate::timer::get_time_ms;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
+
+/// const BIG_STRIDE for stride
+pub const BIG_STRIDE: isize = 255;
 
 /// Task control block structure
 ///
@@ -40,6 +37,10 @@ impl TaskControlBlock {
     pub fn get_user_token(&self) -> usize {
         let inner = self.inner_exclusive_access();
         inner.memory_set.token()
+    }
+    /// Get the stride of this task
+    pub fn get_stride(&self) -> isize {
+        self.inner_exclusive_access().stride
     }
 }
 
@@ -76,8 +77,14 @@ pub struct TaskControlBlockInner {
     /// Program break
     pub program_brk: usize,
 
-    /// Syscall record
-    pub syscall_record: [usize; MAX_SYSCALL_NUM],
+    /// Start running time of task
+    pub start_time: usize,
+
+    /// Pass of task
+    pub pass: isize,
+
+    /// Stride of task
+    pub stride: isize,
 }
 
 impl TaskControlBlockInner {
@@ -114,7 +121,6 @@ impl TaskControlBlock {
         let kernel_stack_top = kernel_stack.get_top();
         // push a task context which goes to trap_return to the top of kernel stack
         let task_control_block = Self {
-<<<<<<< HEAD
             pid: pid_handle,
             kernel_stack,
             inner: unsafe {
@@ -129,18 +135,11 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    start_time: get_time_ms(),
+                    pass: BIG_STRIDE / 16,
+                    stride: 0,
                 })
             },
-=======
-            task_status,
-            task_cx: TaskContext::goto_trap_return(kernel_stack_top),
-            memory_set,
-            trap_cx_ppn,
-            base_size: user_sp,
-            heap_bottom: user_sp,
-            program_brk: user_sp,
-            syscall_record: [0; MAX_SYSCALL_NUM],
->>>>>>> 7aa2f40 (chapter4练习)
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
@@ -212,6 +211,9 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    start_time: get_time_ms(),
+                    pass: BIG_STRIDE / 16,
+                    stride: parent_inner.stride,
                 })
             },
         });
@@ -226,7 +228,21 @@ impl TaskControlBlock {
         // **** release child PCB
         // ---- release parent PCB
     }
+    /// parent process spawn the child process
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        // ---- access parent PCB exclusively
+        let mut parent_inner = self.inner_exclusive_access();
 
+        let child_tcb = Arc::new(TaskControlBlock::new(elf_data));
+        {
+            let mut child_inner = child_tcb.inner_exclusive_access();
+            child_inner.stride = parent_inner.stride;
+        }
+        // add child
+        parent_inner.children.push(child_tcb.clone());
+
+        child_tcb
+    }
     /// get pid of process
     pub fn getpid(&self) -> usize {
         self.pid.0
@@ -257,6 +273,43 @@ impl TaskControlBlock {
             None
         }
     }
+    /// Map an area for current 'Running' task
+    pub fn map(&self, start: usize, len: usize, port: usize) -> bool {
+        let left_vaddr = VirtAddr::from(start);
+        let right_vaddr = VirtAddr::from(start + len);
+        if !left_vaddr.aligned() {
+            return false;
+        }
+        if port & !0x7 != 0 || port == 0 {
+            return false;
+        }
+
+        let left = VirtPageNum::from(left_vaddr);
+        let right = right_vaddr.ceil();
+        let permission = MapPermission::from_bits_truncate(((port as u8) << 1) | (1 << 4));
+
+        // get current task memset
+        let mut inner = self.inner.exclusive_access();
+        let memset = &mut inner.memory_set;
+
+        memset.map(left, right, permission)
+    }
+
+    /// Unmap an area for current 'Running' task
+    pub fn unmap(&self, start: usize, len: usize) -> bool {
+        let left_vaddr = VirtAddr::from(start);
+        let right_vaddr = VirtAddr::from(start + len);
+        if !left_vaddr.aligned() {
+            return false;
+        }
+        let left = VirtPageNum::from(left_vaddr);
+        let right = right_vaddr.ceil();
+        // get current task memset
+        let mut inner = self.inner.exclusive_access();
+        let memset = &mut inner.memory_set;
+
+        memset.unmap(left, right)
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -269,10 +322,5 @@ pub enum TaskStatus {
     /// running
     Running,
     /// exited
-<<<<<<< HEAD
     Zombie,
 }
-=======
-    Exited,
-}
->>>>>>> 7aa2f40 (chapter4练习)

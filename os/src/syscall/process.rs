@@ -1,27 +1,16 @@
 //! Process management syscalls
-<<<<<<< HEAD
+use core::{mem::size_of, slice};
+
 use alloc::sync::Arc;
 
 use crate::{
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next,
-    },
-=======
-use core::mem::size_of;
-
-use alloc::slice;
-
-use crate::{
-    mm::{translated_byte_buffer, PageTable, VirtAddr},
-    task::{
-        change_program_brk, current_map, current_munmap, current_user_token,
-        exit_current_and_run_next, get_syscall, suspend_current_and_run_next,
+        suspend_current_and_run_next, BIG_STRIDE,
     },
     timer::get_time_us,
->>>>>>> 7aa2f40 (chapter4练习)
 };
 
 #[repr(C)]
@@ -45,7 +34,6 @@ pub fn sys_yield() -> isize {
     0
 }
 
-<<<<<<< HEAD
 pub fn sys_getpid() -> isize {
     trace!("kernel: sys_getpid pid:{}", current_task().unwrap().pid.0);
     current_task().unwrap().pid.0 as isize
@@ -82,7 +70,11 @@ pub fn sys_exec(path: *const u8) -> isize {
 /// If there is not a child process whose pid is same as given, return -1.
 /// Else if there is a child process but it is still running, return -2.
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
-    trace!("kernel::pid[{}] sys_waitpid [{}]", current_task().unwrap().pid.0, pid);
+    trace!(
+        "kernel::pid[{}] sys_waitpid [{}]",
+        current_task().unwrap().pid.0,
+        pid
+    );
     let task = current_task().unwrap();
     // find a child process
 
@@ -116,8 +108,6 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     }
     // ---- release current PCB automatically
 }
-
-=======
 /// copy memory to user spcae
 fn copy_to_user(kernel_start: usize, user_start: *const u8, _len: usize) {
     let mut copied_len = 0;
@@ -130,38 +120,14 @@ fn copy_to_user(kernel_start: usize, user_start: *const u8, _len: usize) {
         copied_len += slice.len();
     }
 }
-
->>>>>>> 7aa2f40 (chapter4练习)
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-<<<<<<< HEAD
     trace!(
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
-}
-
-/// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
-}
-
-/// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
-=======
-    trace!("kernel: sys_get_time");
     let us = get_time_us();
     let ts = TimeVal {
         sec: us / 1_000_000,
@@ -175,63 +141,32 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     0
 }
 
-/// TODO: Finish sys_trace to pass testcases
-/// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
-    trace!("kernel: sys_trace");
-    let token = current_user_token();
-    match _trace_request {
-        // read
-        0 => {
-            let page_table = PageTable::from_token(token);
-            let va = VirtAddr::from(_id);
-            let vpn = va.floor();
-            if let Some(pte) = page_table.translate(vpn) {
-                if pte.is_valid() && pte.is_user() && pte.readable() {
-                    return pte.ppn().get_bytes_array()[va.page_offset()].into();
-                }
-            }
-        }
-        // write()
-        1 => {
-            let page_table = PageTable::from_token(token);
-            let va = VirtAddr::from(_id);
-            let vpn = va.floor();
-            if let Some(pte) = page_table.translate(vpn) {
-                if pte.is_valid() && pte.is_user() && pte.writable() {
-                    pte.ppn().get_bytes_array()[va.page_offset()] = _data as u8;
-                    return 0;
-                }
-            }
-        }
-        // syscall
-        2 => return get_syscall(_id) as isize,
-        // default
-        _ => (),
-    }
-    -1
-}
-
-// YOUR JOB: Implement mmap.
+/// YOUR JOB: Implement mmap.
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    if current_map(start, len, port) {
+    trace!(
+        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
+    let task = current_task().unwrap();
+    if task.map(start, len, port) {
         0
     } else {
         -1
     }
 }
 
-// YOUR JOB: Implement munmap.
+/// YOUR JOB: Implement munmap.
 pub fn sys_munmap(start: usize, len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    trace!("kernel: sys_munmap");
-    if current_munmap(start, len) {
+    trace!(
+        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        current_task().unwrap().pid.0
+    );
+    let task = current_task().unwrap();
+    if task.unmap(start, len) {
         0
     } else {
         -1
     }
->>>>>>> 7aa2f40 (chapter4练习)
 }
 
 /// change data segment size
@@ -242,7 +177,6 @@ pub fn sys_sbrk(size: i32) -> isize {
     } else {
         -1
     }
-<<<<<<< HEAD
 }
 
 /// YOUR JOB: Implement spawn.
@@ -252,7 +186,17 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let token = current_user_token();
+    let path = translated_str(token, _path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        let current_task = current_task().unwrap();
+        let new_task = current_task.spawn(data);
+        let new_pid = new_task.pid.0;
+        add_task(new_task);
+        new_pid as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
@@ -261,8 +205,11 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _prio < 2 {
+        return -1;
+    }
+    let current = current_task().unwrap();
+    let mut inner = current.inner_exclusive_access();
+    inner.pass = BIG_STRIDE / _prio;
+    _prio
 }
-=======
-}
->>>>>>> 7aa2f40 (chapter4练习)

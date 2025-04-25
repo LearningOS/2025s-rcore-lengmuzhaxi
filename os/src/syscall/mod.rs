@@ -43,15 +43,8 @@ mod process;
 
 use fs::*;
 use process::*;
-<<<<<<< HEAD
-=======
-
-use crate::task::ascend_syscall;
-
->>>>>>> 7aa2f40 (chapter4练习)
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
-    ascend_syscall(syscall_id);
     match syscall_id {
         SYSCALL_READ => sys_read(args[0], args[1] as *const u8, args[2]),
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
