@@ -217,6 +217,7 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+<<<<<<< HEAD
 }
 
 /// An abstraction over a buffer passed from user space to kernel space
@@ -276,3 +277,6 @@ impl Iterator for UserBufferIterator {
         }
     }
 }
+=======
+}
+>>>>>>> 492e099 (chapter5练习)

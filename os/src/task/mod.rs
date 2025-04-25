@@ -22,13 +22,18 @@ mod switch;
 #[allow(rustdoc::private_intra_doc_links)]
 mod task;
 
+<<<<<<< HEAD
 use crate::fs::{open_file, OpenFlags};
 use alloc::sync::Arc;
 pub use context::TaskContext;
+=======
+use crate::loader::get_app_data_by_name;
+use alloc::sync::Arc;
+>>>>>>> 492e099 (chapter5练习)
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus, BIG_STRIDE};
 
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
@@ -119,4 +124,8 @@ lazy_static! {
 ///Add init process to the manager
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 492e099 (chapter5练习)
