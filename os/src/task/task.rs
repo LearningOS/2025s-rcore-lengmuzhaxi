@@ -84,18 +84,6 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
-<<<<<<< HEAD
-=======
-
-    /// Start running time of task
-    pub start_time: usize,
-
-    /// Pass of task
-    pub pass: isize,
-
-    /// Stride of task
-    pub stride: isize,
->>>>>>> 492e099 (chapter5练习)
 }
 
 impl TaskControlBlockInner {
