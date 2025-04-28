@@ -1,30 +1,17 @@
 //! Process management syscalls
-<<<<<<< HEAD
 //!
-use alloc::sync::Arc;
-
 use crate::{
     fs::{open_file, OpenFlags},
     mm::{translated_refmut, translated_str},
-    task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next,
-    },
-=======
-use core::{mem::size_of, slice};
-
-use alloc::sync::Arc;
-
-use crate::{
-    loader::get_app_data_by_name,
-    mm::{translated_byte_buffer, translated_refmut, translated_str},
+    syscall::copy_to_user,
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next, BIG_STRIDE,
     },
     timer::get_time_us,
->>>>>>> 492e099 (chapter5练习)
 };
+use alloc::sync::Arc;
+use core::mem::size_of;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -82,15 +69,7 @@ pub fn sys_exec(path: *const u8) -> isize {
 /// If there is not a child process whose pid is same as given, return -1.
 /// Else if there is a child process but it is still running, return -2.
 pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
-<<<<<<< HEAD
     //trace!("kernel: sys_waitpid");
-=======
-    trace!(
-        "kernel::pid[{}] sys_waitpid [{}]",
-        current_task().unwrap().pid.0,
-        pid
-    );
->>>>>>> 492e099 (chapter5练习)
     let task = current_task().unwrap();
     // find a child process
 
@@ -124,6 +103,7 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     }
     // ---- release current PCB automatically
 }
+
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
@@ -132,25 +112,45 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let us = get_time_us();
+    let ts = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    copy_to_user(
+        &ts as *const TimeVal as usize,
+        _ts as *const u8,
+        size_of::<TimeVal>(),
+    );
+    0
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let task = current_task().unwrap();
+    if task.map(start, len, port) {
+        0
+    } else {
+        -1
+    }
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let task = current_task().unwrap();
+    if task.unmap(start, len) {
+        0
+    } else {
+        -1
+    }
 }
 
 /// change data segment size
@@ -172,9 +172,10 @@ pub fn sys_spawn(_path: *const u8) -> isize {
     );
     let token = current_user_token();
     let path = translated_str(token, _path);
-    if let Some(data) = get_app_data_by_name(path.as_str()) {
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let data = app_inode.read_all();
         let current_task = current_task().unwrap();
-        let new_task = current_task.spawn(data);
+        let new_task = current_task.spawn(&data);
         let new_pid = new_task.pid.0;
         add_task(new_task);
         new_pid as isize
@@ -189,5 +190,11 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if _prio < 2 {
+        return -1;
+    }
+    let current = current_task().unwrap();
+    let mut inner = current.inner_exclusive_access();
+    inner.pass = BIG_STRIDE / (_prio as usize);
+    _prio
 }

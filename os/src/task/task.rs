@@ -2,23 +2,19 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-<<<<<<< HEAD
 use crate::fs::{File, Stdin, Stdout};
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
-use crate::sync::UPSafeCell;
-=======
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, VirtPageNum, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_ms;
->>>>>>> 492e099 (chapter5练习)
 use crate::trap::{trap_handler, TrapContext};
+use alloc::string::String;
 use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
 
 /// const BIG_STRIDE for stride
-pub const BIG_STRIDE: isize = 255;
+pub const BIG_STRIDE: usize = 255;
 
 /// Task control block structure
 ///
@@ -46,7 +42,7 @@ impl TaskControlBlock {
         inner.memory_set.token()
     }
     /// Get the stride of this task
-    pub fn get_stride(&self) -> isize {
+    pub fn get_stride(&self) -> usize {
         self.inner_exclusive_access().stride
     }
 }
@@ -78,12 +74,22 @@ pub struct TaskControlBlockInner {
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
+    pub fd_name:Vec<Option<String>>,
 
     /// Heap bottom
     pub heap_bottom: usize,
 
     /// Program break
     pub program_brk: usize,
+
+    /// Start running time of task
+    pub start_time: usize,
+
+    /// Pass of task
+    pub pass: usize,
+
+    /// Stride of task
+    pub stride: usize,
 }
 
 impl TaskControlBlockInner {
@@ -146,6 +152,7 @@ impl TaskControlBlock {
                         // 2 -> stderr
                         Some(Arc::new(Stdout)),
                     ],
+                    fd_name:Vec::new(),
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     start_time: get_time_ms(),
@@ -230,11 +237,11 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     fd_table: new_fd_table,
+                    fd_name:parent_inner.fd_name.clone(),
                     heap_bottom: parent_inner.heap_bottom,
-                    program_brk: parent_inner.program_brk,
-                    start_time: get_time_ms(),
+                    program_brk: parent_inner.program_brk,start_time: get_time_ms(),
                     pass: BIG_STRIDE / 16,
-                    stride: parent_inner.stride,
+                    stride: 0,
                 })
             },
         });
@@ -264,6 +271,7 @@ impl TaskControlBlock {
 
         child_tcb
     }
+
     /// get pid of process
     pub fn getpid(&self) -> usize {
         self.pid.0
@@ -344,8 +352,4 @@ pub enum TaskStatus {
     Running,
     /// exited
     Zombie,
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 492e099 (chapter5练习)
